@@ -1,0 +1,105 @@
+---
+title: "P5"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, include=FALSE}
+library(broom)
+library(foreign)
+library(tidyverse)
+library(rdrobust)
+library(sandwich)
+library(psych)
+library(sampler)
+```
+
+
+```{r}
+# Dataset retrieved from #https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/TBBV8R
+
+setwd("C:/Users/zeena/OneDrive/Desktop")
+gradedata = read.dta("data_for_analysis.dta")
+```
+
+```{r}
+# Table 1 Summary Statistics
+
+describe(gradedata)
+```
+
+```{r}
+# sample for original analysis
+sample <-rsamp(gradedata, n=360, over=10, rep=FALSE)
+
+# Imbalance between treatment and control in original analysis Figure 1
+plot(density(sample$hsgrade_pct[sample$veryhighHS==1]),col="red",
+     xlim = c(0,100),
+     main = "Density of HS Grade Percentile",
+     lty=2,
+     xlab = "HS Grade Percentile")
+lines(density(sample$hsgrade_pct[sample$veryhighHS==0]),col="blue")
+legend(55,1, bty="n",
+       c("very high HS grade","other"),
+       lty=c(1,2),
+       lwd=c(1,1),col=c("blue","red")) 
+
+```
+
+```{r}
+# Frequency Figure 2"
+clean_gradedata <- gradedata %>% filter(hsgrade_pct<100, hsgrade_pct>0)
+
+clean_gradedata %>% 
+ggplot(aes(x = hsgrade_pct)) +
+  geom_histogram(position = "dodge",
+                 binwidth = 0.2) +
+  theme_minimal() +
+  labs(x = "Grade",
+       y = "Grade")
+```
+
+
+
+```{r}
+# cut-off is graph Figure 3
+gradedata %>% 
+  ggplot(aes(x = hsgrade_pct,
+             y = dist_from_cut_med10)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(data = gradedata %>% filter(hsgrade_pct < 90), 
+              method='lm',
+              color = "blue") +
+  geom_smooth(data = gradedata %>% filter(hsgrade_pct >= 90), 
+              method='lm',
+              color = "red") +
+  theme_minimal() +
+  labs(x = "Grade",
+       y = "Distance to med cutoff")
+
+```
+
+```{r}
+# linear regression to estimate the effect Table 2
+gradedata <- 
+  gradedata %>% 
+  mutate(grade_90_and_over = if_else(hsgrade_pct < 90, 0, 1)) 
+
+lm(dist_from_cut_med10 ~ hsgrade_pct + grade_90_and_over, data = gradedata) %>% 
+  tidy()
+
+```
+
+```{r}
+# Estimate the effect Table 3
+rdrobust(y = gradedata$dist_from_cut_med10, x = gradedata$hsgrade_pct, c = 80, h = 2, all = TRUE) %>% summary()
+
+```
+
+
